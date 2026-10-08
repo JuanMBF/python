@@ -1,0 +1,37 @@
+[project]
+name = "helpdesk-pro"
+version = "1.0.0"
+description = "Sistema de gestión de tickets de soporte IT: API REST con FastAPI, SQLAlchemy y panel en Streamlit."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Juan Barros" }]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/seed.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "DTZ", "RUF", "N", "PTH", "RET"]
+ignore = ["RUF001", "RUF002", "RUF003"]  # Spanish text legitimately uses accented characters
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B017"]
+
+[tool.ruff.lint.isort]
+# The dashboard runs as a Streamlit script, so its modules are imported by bare name.
+known-first-party = ["app", "api_client", "ui", "views"]

@@ -1,0 +1,17 @@
+# API
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30
+sqlalchemy>=2.0.30,<3.0
+alembic>=1.13
+pydantic[email]>=2.7,<3.0
+pydantic-settings>=2.3
+pyjwt>=2.8
+bcrypt>=4.1
+python-multipart>=0.0.9
+tzdata>=2024.1
+
+# Dashboard
+streamlit>=1.40,<2.0
+pandas>=2.2
+altair>=5.3
+requests>=2.31

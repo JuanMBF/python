@@ -1,0 +1,31 @@
+services:
+  api:
+    build: .
+    image: helpdesk-pro
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-change-me-to-a-long-random-string-in-production}
+    volumes:
+      - helpdesk-data:/app/data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  dashboard:
+    build: .
+    image: helpdesk-pro
+    command: streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8501
+    environment:
+      HELPDESK_API_URL: http://api:8000/api/v1
+    ports:
+      - "8501:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  helpdesk-data:
