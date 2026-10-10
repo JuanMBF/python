@@ -292,5 +292,8 @@ El pipeline de **GitHub Actions** ejecuta todo lo anterior en Python 3.11, 3.12 
 técnico y mesa de ayuda.
 
 - GitHub: [@JuanMBF](https://github.com/JuanMBF)
+- Más proyectos: [Portfolio](https://github.com/JuanMBF/Portfolio) (HelpDesk Pro en Java + React, Mongo
+  Replica Lab e IT Support Toolkit) y [ProyectoDB](https://github.com/JuanMBF/ProyectoDB) (scraper de
+  precios de supermercados con MySQL y MongoDB).
 
 Proyecto bajo licencia [MIT](LICENSE).
