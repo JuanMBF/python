@@ -4,6 +4,7 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from app.domain.enums import EventType, TicketCategory, TicketPriority, TicketStatus
+from app.schemas.common import DbId
 from app.schemas.user import UserSummary
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=5, max_length=200)]
@@ -23,7 +24,7 @@ class TicketUpdate(BaseModel):
     status: TicketStatus | None = None
     priority: TicketPriority | None = None
     category: TicketCategory | None = None
-    assignee_id: int | None = None
+    assignee_id: DbId | None = None
 
 
 class CommentCreate(BaseModel):

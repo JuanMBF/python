@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from app.api.deps import CurrentUser, DbSession
 from app.domain.enums import TicketCategory, TicketPriority, TicketStatus
 from app.models import Ticket, User
-from app.schemas.common import Page
+from app.schemas.common import DbId, Page
 from app.schemas.ticket import (
     CommentCreate,
     CommentRead,
@@ -33,7 +33,7 @@ def ticket_filters(
     status_: Annotated[list[TicketStatus] | None, Query(alias="status")] = None,
     priority: Annotated[list[TicketPriority] | None, Query()] = None,
     category: Annotated[list[TicketCategory] | None, Query()] = None,
-    assignee_id: int | None = None,
+    assignee_id: DbId | None = None,
     unassigned: bool = False,
     overdue: Annotated[bool, Query(description="Solo tickets activos con el SLA vencido")] = False,
     q: Annotated[str | None, Query(max_length=100, description="Busca en título, descripción o #id")] = None,
@@ -90,12 +90,12 @@ def create_ticket(db: DbSession, user: CurrentUser, data: TicketCreate) -> Ticke
 
 
 @router.get("/{ticket_id}", response_model=TicketDetail, summary="Detalle de un ticket")
-def get_ticket(db: DbSession, user: CurrentUser, ticket_id: int) -> TicketDetail:
+def get_ticket(db: DbSession, user: CurrentUser, ticket_id: DbId) -> TicketDetail:
     return _to_detail(ticket_service.get_ticket(db, ticket_id, user), user)
 
 
 @router.patch("/{ticket_id}", response_model=TicketDetail, summary="Actualizar ticket")
-def update_ticket(db: DbSession, user: CurrentUser, ticket_id: int, data: TicketUpdate) -> TicketDetail:
+def update_ticket(db: DbSession, user: CurrentUser, ticket_id: DbId, data: TicketUpdate) -> TicketDetail:
     """Cambia estado, prioridad, categoría o técnico asignado. Cada cambio queda en el historial."""
     return _to_detail(ticket_service.update_ticket(db, ticket_id, data, actor=user), user)
 
@@ -106,5 +106,5 @@ def update_ticket(db: DbSession, user: CurrentUser, ticket_id: int, data: Ticket
     status_code=status.HTTP_201_CREATED,
     summary="Agregar comentario",
 )
-def add_comment(db: DbSession, user: CurrentUser, ticket_id: int, data: CommentCreate) -> CommentRead:
+def add_comment(db: DbSession, user: CurrentUser, ticket_id: DbId, data: CommentCreate) -> CommentRead:
     return CommentRead.model_validate(ticket_service.add_comment(db, ticket_id, data, author=user))

@@ -84,3 +84,9 @@ def test_admin_cannot_lock_themselves_out(client: TestClient, admin: User) -> No
 
 def test_update_unknown_user_returns_404(client: TestClient, admin: User) -> None:
     assert client.patch(f"{USERS}/999", json={"full_name": "Nadie"}, headers=auth(admin)).status_code == 404
+
+
+def test_update_user_with_an_id_that_does_not_fit_in_the_database(client: TestClient, admin: User) -> None:
+    response = client.patch(f"{USERS}/{10**30}", json={"full_name": "Nadie"}, headers=auth(admin))
+
+    assert response.status_code == 422

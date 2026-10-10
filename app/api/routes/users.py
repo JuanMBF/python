@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query, status
 
 from app.api.deps import AdminUser, DbSession, StaffUser
 from app.domain.enums import UserRole
+from app.schemas.common import DbId
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 from app.services import users as user_service
 
@@ -28,5 +29,5 @@ def create_user(db: DbSession, _: AdminUser, data: UserCreate) -> UserRead:
 
 
 @router.patch("/{user_id}", response_model=UserRead, summary="Actualizar usuario")
-def update_user(db: DbSession, admin: AdminUser, user_id: int, data: UserUpdate) -> UserRead:
+def update_user(db: DbSession, admin: AdminUser, user_id: DbId, data: UserUpdate) -> UserRead:
     return UserRead.model_validate(user_service.update_user(db, user_id, data, actor=admin))

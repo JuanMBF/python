@@ -69,6 +69,26 @@ def test_unknown_ticket_returns_404(client: TestClient, agent: User) -> None:
     assert client.get(f"{TICKETS}/999", headers=auth(agent)).status_code == 404
 
 
+@pytest.mark.parametrize("ticket_id", [10**30, -(10**30)])
+def test_ids_that_do_not_fit_in_the_database_are_rejected(
+    client: TestClient, create_ticket, requester, agent, ticket_id: int
+) -> None:
+    # They used to reach the query and blow up as a 500 (OverflowError in the driver).
+    existing = create_ticket(requester)["id"]
+    headers = auth(agent)
+
+    responses = [
+        client.get(f"{TICKETS}/{ticket_id}", headers=headers),
+        client.patch(f"{TICKETS}/{ticket_id}", json={"priority": "high"}, headers=headers),
+        client.post(f"{TICKETS}/{ticket_id}/comments", json={"body": "Hola"}, headers=headers),
+        client.get(TICKETS, params={"assignee_id": ticket_id}, headers=headers),
+        client.get(f"{TICKETS}/export", params={"assignee_id": ticket_id}, headers=headers),
+        update(client, agent, existing, assignee_id=ticket_id),
+    ]
+
+    assert [response.status_code for response in responses] == [422] * len(responses)
+
+
 # --- Workflow -----------------------------------------------------------------------------------
 
 
