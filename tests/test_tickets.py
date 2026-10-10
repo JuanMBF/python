@@ -250,6 +250,32 @@ def test_list_filters(client: TestClient, create_ticket, requester, agent) -> No
     assert ids(q=f"#{printer['id']}") == [printer["id"]]
 
 
+@pytest.mark.parametrize("term", ["²", "9" * 30, "#" + "9" * 30])
+def test_search_text_that_is_not_a_valid_ticket_number(
+    client: TestClient, create_ticket, requester, agent, term: str
+) -> None:
+    create_ticket(requester)
+
+    response = client.get(TICKETS, params={"q": term}, headers=auth(agent))
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+
+
+def test_search_treats_like_wildcards_as_plain_text(
+    client: TestClient, create_ticket, requester, agent
+) -> None:
+    discount = create_ticket(requester, title="El descuento del 100% no se aplica")
+    create_ticket(requester, title="Pedido de 1000 resmas de papel")
+
+    def ids(q: str) -> list[int]:
+        response = client.get(TICKETS, params={"q": q}, headers=auth(agent))
+        return [item["id"] for item in response.json()["items"]]
+
+    assert ids("100%") == [discount["id"]]
+    assert ids("_") == []
+
+
 def test_overdue_filter_and_sla_flag(
     client: TestClient, db: Session, create_ticket, requester, agent
 ) -> None:

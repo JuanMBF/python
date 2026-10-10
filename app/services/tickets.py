@@ -18,6 +18,7 @@ from app.schemas.common import Page
 from app.schemas.ticket import CommentCreate, TicketCreate, TicketRead, TicketUpdate
 
 UNASSIGNED_LABEL = "Sin asignar"
+_MAX_ID_DIGITS = 18
 
 SortOption = Literal[
     "created_at", "-created_at", "updated_at", "-updated_at", "due_at", "-due_at", "priority", "-priority"
@@ -55,6 +56,15 @@ class TicketFilters:
 
 def _base_query() -> Select[tuple[Ticket]]:
     return select(Ticket).options(selectinload(Ticket.requester), selectinload(Ticket.assignee))
+
+
+def _as_ticket_id(term: str) -> int | None:
+    """The ticket number a search term refers to, or None when it cannot be one."""
+    # isdigit() alone also accepts characters like "²", which int() rejects; and a number with more
+    # digits than a 64-bit id does not fit in an integer column.
+    if term.isascii() and term.isdigit() and len(term) <= _MAX_ID_DIGITS:
+        return int(term)
+    return None
 
 
 def _record_event(
@@ -124,9 +134,14 @@ def list_tickets(
         query = query.where(Ticket.status.in_(ACTIVE_STATUSES), Ticket.due_at < utcnow())
     if filters.search:
         term = filters.search.strip().lstrip("#")
-        conditions = [Ticket.title.ilike(f"%{term}%"), Ticket.description.ilike(f"%{term}%")]
-        if term.isdigit():
-            conditions.append(Ticket.id == int(term))
+        # autoescape: "%" and "_" in the search text are literal characters, not LIKE wildcards.
+        conditions = [
+            Ticket.title.icontains(term, autoescape=True),
+            Ticket.description.icontains(term, autoescape=True),
+        ]
+        ticket_id = _as_ticket_id(term)
+        if ticket_id is not None:
+            conditions.append(Ticket.id == ticket_id)
         query = query.where(or_(*conditions))
 
     total = db.scalar(select(func.count()).select_from(query.order_by(None).subquery())) or 0
