@@ -26,6 +26,7 @@ Incluye una API REST con autenticación JWT, base de datos relacional con migrac
 - **Panel de métricas**: tickets activos, vencidos, sin asignar, % de cumplimiento de SLA,
   tiempo medio de resolución, tendencia diaria y carga de trabajo por técnico.
 - **Búsqueda, filtros, ordenamiento y paginación** en el listado de tickets.
+- **Exportación a CSV** del listado, con los mismos filtros y permisos, lista para abrir en Excel.
 - **Administración de usuarios**: alta, cambio de rol, desactivación y blanqueo de contraseña.
 - **Datos de demo realistas** (360 tickets, 12 usuarios) para probarlo en segundos.
 
@@ -38,7 +39,7 @@ Incluye una API REST con autenticación JWT, base de datos relacional con migrac
 | Validación | **Pydantic v2** y pydantic-settings (configuración por variables de entorno) |
 | Seguridad | **JWT** (PyJWT), contraseñas con **bcrypt**, control de acceso por rol |
 | Panel web | **Streamlit** + Altair (gráficos) + pandas |
-| Calidad | **pytest** (60 tests, ~98 % de cobertura), **Ruff** (lint + formato), **GitHub Actions** |
+| Calidad | **pytest** (68 tests, ~98 % de cobertura), **Ruff** (lint + formato), **GitHub Actions** |
 | Despliegue | **Docker** + Docker Compose |
 
 ## Arquitectura
@@ -66,7 +67,7 @@ de FastAPI, por lo que se puede testear y reutilizar sin pasar por HTTP.
 │   ├── domain/               # Reglas puras: enums, SLA y flujo de estados
 │   ├── models/               # Modelos ORM: User, Ticket, Comment, TicketEvent
 │   ├── schemas/              # Esquemas Pydantic de entrada y salida
-│   ├── services/             # Casos de uso: tickets, usuarios y métricas
+│   ├── services/             # Casos de uso: tickets, usuarios, métricas y exportación a CSV
 │   ├── main.py               # Aplicación FastAPI
 │   └── seed.py               # Migraciones + datos de demo
 ├── dashboard/                # Panel web (Streamlit)
@@ -190,6 +191,7 @@ La documentación completa e interactiva está en `/docs`.
 | `POST` | `/api/v1/auth/login` | Inicia sesión y devuelve un token JWT | Público |
 | `GET` | `/api/v1/auth/me` | Usuario autenticado | Todos |
 | `GET` | `/api/v1/tickets` | Lista con filtros (`status`, `priority`, `category`, `assignee_id`, `overdue`, `q`), orden y paginación | Todos* |
+| `GET` | `/api/v1/tickets/export` | Descarga en CSV los tickets que cumplen los filtros del listado (sin paginar) | Todos* |
 | `POST` | `/api/v1/tickets` | Crea un ticket | Todos |
 | `GET` | `/api/v1/tickets/{id}` | Detalle con conversación e historial | Todos* |
 | `PATCH` | `/api/v1/tickets/{id}` | Cambia estado, prioridad, categoría o técnico | Técnicos |
@@ -200,7 +202,7 @@ La documentación completa e interactiva está en `/docs`.
 | `PATCH` | `/api/v1/users/{id}` | Cambia rol, estado o contraseña | Admin |
 | `GET` | `/health` | Estado del servicio y de la base de datos | Público |
 
-\* Los solicitantes solo pueden ver y comentar **sus propios** tickets.
+\* Los solicitantes solo pueden ver, exportar y comentar **sus propios** tickets.
 
 Ejemplo con `curl`:
 
@@ -261,7 +263,7 @@ Otras reglas:
 ```bash
 pip install -r requirements-dev.txt
 
-pytest --cov             # 60 tests: API, permisos, reglas de negocio, métricas y base de datos
+pytest --cov             # 68 tests: API, permisos, reglas de negocio, métricas y base de datos
 ruff check .             # linter
 ruff format --check .    # formato
 alembic check            # verifica que las migraciones coincidan con los modelos

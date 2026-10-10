@@ -1,3 +1,6 @@
+import codecs
+import csv
+import io
 from datetime import datetime, timedelta
 
 import pytest
@@ -309,3 +312,68 @@ def test_pagination(client: TestClient, create_ticket, requester) -> None:
     assert page["total"] == 5
     assert page["pages"] == 3
     assert [item["title"] for item in page["items"]] == ["Ticket número 2", "Ticket número 1"]
+
+
+# --- CSV export ---------------------------------------------------------------------------------
+
+
+def export(client: TestClient, user: User, **params) -> list[dict[str, str]]:
+    response = client.get(f"{TICKETS}/export", params=params, headers=auth(user))
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"] == "text/csv; charset=utf-8"
+    assert response.headers["content-disposition"] == 'attachment; filename="tickets.csv"'
+    assert response.content.startswith(codecs.BOM_UTF8)  # so Excel reads the accents correctly
+    return list(csv.DictReader(io.StringIO(response.content.decode("utf-8-sig"))))
+
+
+def test_export_csv_has_one_row_per_ticket(client: TestClient, create_ticket, requester, agent) -> None:
+    printer = create_ticket(requester, title="Impresora sin tóner", priority=TicketPriority.HIGH)
+    vpn = create_ticket(requester, title="La VPN se desconecta", category=TicketCategory.NETWORK)
+    update(client, agent, vpn["id"], status="resolved", assignee_id=agent.id)
+
+    rows = export(client, agent)
+
+    assert [row["id"] for row in rows] == [str(vpn["id"]), str(printer["id"])]
+    assert rows[1] == {
+        "id": str(printer["id"]),
+        "title": "Impresora sin tóner",
+        "category": "hardware",
+        "priority": "high",
+        "status": "open",
+        "requester": "Sara Solicitante",
+        "assignee": "",
+        "created_at": parse(printer["created_at"]).isoformat(),
+        "due_at": parse(printer["due_at"]).isoformat(),
+        "resolved_at": "",
+        "sla_breached": "false",
+    }
+    assert rows[0]["assignee"] == "Tito Técnico"
+    assert rows[0]["resolved_at"] != ""
+
+
+def test_export_csv_applies_filters_sort_and_visibility(
+    client: TestClient, create_ticket, requester, other_requester, agent
+) -> None:
+    mine = create_ticket(requester, title="Impresora sin tóner", priority=TicketPriority.CRITICAL)
+    theirs = create_ticket(other_requester, title="La VPN se desconecta")
+
+    def ids(user: User, **params) -> list[int]:
+        return [int(row["id"]) for row in export(client, user, **params)]
+
+    assert ids(agent, q="vpn") == [theirs["id"]]
+    assert ids(agent, priority="critical") == [mine["id"]]
+    assert ids(agent, sort="created_at") == [mine["id"], theirs["id"]]
+    # Requesters only get their own tickets, exactly like in the list.
+    assert ids(requester) == [mine["id"]]
+
+
+def test_export_csv_does_not_let_spreadsheets_run_formulas(
+    client: TestClient, create_ticket, requester, agent
+) -> None:
+    create_ticket(requester, title='=HYPERLINK("http://example.com")')
+
+    assert export(client, agent)[0]["title"] == '\'=HYPERLINK("http://example.com")'
+
+
+def test_export_csv_requires_authentication(client: TestClient) -> None:
+    assert client.get(f"{TICKETS}/export").status_code == 401

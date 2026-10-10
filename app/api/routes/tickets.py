@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.domain.enums import TicketCategory, TicketPriority, TicketStatus
@@ -15,6 +15,7 @@ from app.schemas.ticket import (
     TicketUpdate,
 )
 from app.services import tickets as ticket_service
+from app.services.export import tickets_to_csv
 from app.services.tickets import SortOption, TicketFilters
 
 router = APIRouter(prefix="/tickets", tags=["Tickets"])
@@ -28,10 +29,7 @@ def _to_detail(ticket: Ticket, user: User) -> TicketDetail:
     return detail
 
 
-@router.get("", response_model=Page[TicketRead], summary="Listar tickets")
-def list_tickets(
-    db: DbSession,
-    user: CurrentUser,
+def ticket_filters(
     status_: Annotated[list[TicketStatus] | None, Query(alias="status")] = None,
     priority: Annotated[list[TicketPriority] | None, Query()] = None,
     category: Annotated[list[TicketCategory] | None, Query()] = None,
@@ -39,12 +37,8 @@ def list_tickets(
     unassigned: bool = False,
     overdue: Annotated[bool, Query(description="Solo tickets activos con el SLA vencido")] = False,
     q: Annotated[str | None, Query(max_length=100, description="Busca en título, descripción o #id")] = None,
-    sort: SortOption = "-created_at",
-    page: Annotated[int, Query(ge=1)] = 1,
-    size: Annotated[int, Query(ge=1, le=100)] = 20,
-) -> Page[TicketRead]:
-    """Los usuarios solicitantes solo ven sus propios tickets; los técnicos ven todos."""
-    filters = TicketFilters(
+) -> TicketFilters:
+    return TicketFilters(
         statuses=status_ or [],
         priorities=priority or [],
         categories=category or [],
@@ -53,7 +47,40 @@ def list_tickets(
         overdue=overdue,
         search=q,
     )
+
+
+Filters = Annotated[TicketFilters, Depends(ticket_filters)]
+
+
+@router.get("", response_model=Page[TicketRead], summary="Listar tickets")
+def list_tickets(
+    db: DbSession,
+    user: CurrentUser,
+    filters: Filters,
+    sort: SortOption = "-created_at",
+    page: Annotated[int, Query(ge=1)] = 1,
+    size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> Page[TicketRead]:
+    """Los usuarios solicitantes solo ven sus propios tickets; los técnicos ven todos."""
     return ticket_service.list_tickets(db, user, filters, page=page, size=size, sort=sort)
+
+
+@router.get(
+    "/export",
+    summary="Exportar tickets a CSV",
+    response_class=Response,
+    responses={200: {"content": {"text/csv": {}}, "description": "Archivo CSV en UTF-8"}},
+)
+def export_tickets(
+    db: DbSession, user: CurrentUser, filters: Filters, sort: SortOption = "-created_at"
+) -> Response:
+    """Mismos filtros y permisos que el listado, sin paginar (hasta 5.000 tickets)."""
+    tickets = ticket_service.export_tickets(db, user, filters, sort=sort)
+    return Response(
+        content=tickets_to_csv(tickets),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="tickets.csv"'},
+    )
 
 
 @router.post("", response_model=TicketDetail, status_code=status.HTTP_201_CREATED, summary="Crear ticket")

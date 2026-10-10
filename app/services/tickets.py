@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 
-from sqlalchemy import Select, case, func, or_, select
+from sqlalchemy import ColumnElement, Select, case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.exceptions import BusinessRuleError, ConflictError, NotFoundError, PermissionDeniedError
@@ -18,6 +18,7 @@ from app.schemas.common import Page
 from app.schemas.ticket import CommentCreate, TicketCreate, TicketRead, TicketUpdate
 
 UNASSIGNED_LABEL = "Sin asignar"
+EXPORT_LIMIT = 5000
 _MAX_ID_DIGITS = 18
 
 SortOption = Literal[
@@ -106,14 +107,7 @@ def create_ticket(db: Session, data: TicketCreate, requester: User) -> Ticket:
     return ticket
 
 
-def list_tickets(
-    db: Session,
-    user: User,
-    filters: TicketFilters,
-    page: int = 1,
-    size: int = 20,
-    sort: SortOption = "-created_at",
-) -> Page[TicketRead]:
+def _filtered_query(user: User, filters: TicketFilters) -> Select[tuple[Ticket]]:
     query = _base_query()
 
     # Requesters can only ever see their own tickets.
@@ -143,15 +137,36 @@ def list_tickets(
         if ticket_id is not None:
             conditions.append(Ticket.id == ticket_id)
         query = query.where(or_(*conditions))
+    return query
 
-    total = db.scalar(select(func.count()).select_from(query.order_by(None).subquery())) or 0
 
+def _ordering(sort: SortOption) -> tuple[ColumnElement, ColumnElement]:
     column = _SORT_COLUMNS[sort.lstrip("-")]
-    order = column.desc() if sort.startswith("-") else column.asc()
-    query = query.order_by(order, Ticket.id.desc()).offset((page - 1) * size).limit(size)
+    return (column.desc() if sort.startswith("-") else column.asc(), Ticket.id.desc())
+
+
+def list_tickets(
+    db: Session,
+    user: User,
+    filters: TicketFilters,
+    page: int = 1,
+    size: int = 20,
+    sort: SortOption = "-created_at",
+) -> Page[TicketRead]:
+    query = _filtered_query(user, filters)
+    total = db.scalar(select(func.count()).select_from(query.order_by(None).subquery())) or 0
+    query = query.order_by(*_ordering(sort)).offset((page - 1) * size).limit(size)
 
     items = [TicketRead.model_validate(ticket) for ticket in db.scalars(query)]
     return Page(items=items, total=total, page=page, size=size, pages=math.ceil(total / size) if total else 0)
+
+
+def export_tickets(
+    db: Session, user: User, filters: TicketFilters, sort: SortOption = "-created_at"
+) -> list[Ticket]:
+    """Every ticket matching the filters, with the same visibility rules as the list but no pagination."""
+    query = _filtered_query(user, filters).order_by(*_ordering(sort)).limit(EXPORT_LIMIT)
+    return list(db.scalars(query))
 
 
 def get_ticket(db: Session, ticket_id: int, user: User) -> Ticket:
