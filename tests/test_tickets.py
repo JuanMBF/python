@@ -334,6 +334,21 @@ def test_pagination(client: TestClient, create_ticket, requester) -> None:
     assert [item["title"] for item in page["items"]] == ["Ticket número 2", "Ticket número 1"]
 
 
+def test_page_number_too_big_for_the_database_is_rejected(
+    client: TestClient, create_ticket, requester
+) -> None:
+    # The offset did not fit in a 64-bit integer and the request ended in a 500 (OverflowError).
+    create_ticket(requester)
+    headers = auth(requester)
+
+    assert client.get(TICKETS, params={"page": 10**30}, headers=headers).status_code == 422
+    assert client.get(TICKETS, params={"page": 2**62, "size": 100}, headers=headers).status_code == 422
+
+    last_page = client.get(TICKETS, params={"page": (2**63 - 1) // 100, "size": 100}, headers=headers)
+    assert last_page.status_code == 200
+    assert last_page.json()["items"] == []
+
+
 # --- CSV export ---------------------------------------------------------------------------------
 
 

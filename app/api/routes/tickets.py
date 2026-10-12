@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from app.api.deps import CurrentUser, DbSession
 from app.domain.enums import TicketCategory, TicketPriority, TicketStatus
 from app.models import Ticket, User
-from app.schemas.common import DbId, Page
+from app.schemas.common import MAX_DB_ID, DbId, Page
 from app.schemas.ticket import (
     CommentCreate,
     CommentRead,
@@ -19,6 +19,10 @@ from app.services.export import tickets_to_csv
 from app.services.tickets import SortOption, TicketFilters
 
 router = APIRouter(prefix="/tickets", tags=["Tickets"])
+
+MAX_PAGE_SIZE = 100
+# The offset sent to the database is (page - 1) * size: past this page it no longer fits in 64 bits.
+MAX_PAGE = MAX_DB_ID // MAX_PAGE_SIZE
 
 
 def _to_detail(ticket: Ticket, user: User) -> TicketDetail:
@@ -58,8 +62,8 @@ def list_tickets(
     user: CurrentUser,
     filters: Filters,
     sort: SortOption = "-created_at",
-    page: Annotated[int, Query(ge=1)] = 1,
-    size: Annotated[int, Query(ge=1, le=100)] = 20,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
+    size: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 20,
 ) -> Page[TicketRead]:
     """Los usuarios solicitantes solo ven sus propios tickets; los técnicos ven todos."""
     return ticket_service.list_tickets(db, user, filters, page=page, size=size, sort=sort)
