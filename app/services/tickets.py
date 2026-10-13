@@ -197,6 +197,7 @@ def update_ticket(db: Session, ticket_id: int, data: TicketUpdate, actor: User) 
         raise ConflictError("El ticket está cerrado y ya no se puede modificar")
 
     now = utcnow()
+    events_before = len(ticket.events)
 
     new_status = changes.get("status")
     if new_status is not None and new_status != ticket.status:
@@ -235,6 +236,10 @@ def update_ticket(db: Session, ticket_id: int, data: TicketUpdate, actor: User) 
             now,
         )
         ticket.assignee = new_assignee
+
+    # Sending the values the ticket already has is not activity: leave "updated_at" alone.
+    if len(ticket.events) == events_before:
+        return ticket
 
     ticket.updated_at = now
     db.commit()

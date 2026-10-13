@@ -165,6 +165,23 @@ def test_changing_priority_recalculates_sla(client: TestClient, create_ticket, r
     assert updated["events"][-1]["event_type"] == "priority_changed"
 
 
+def test_update_without_real_changes_is_not_activity(
+    client: TestClient, create_ticket, requester, agent
+) -> None:
+    # It used to bump "updated_at", so the ticket jumped to the top of "Última actividad"
+    # with nothing new in its history.
+    ticket_id = create_ticket(requester, priority=TicketPriority.HIGH)["id"]
+    assigned = update(client, agent, ticket_id, assignee_id=agent.id).json()
+
+    same = update(
+        client, agent, ticket_id, status="open", priority="high", category="hardware", assignee_id=agent.id
+    )
+
+    assert same.status_code == 200
+    assert same.json()["updated_at"] == assigned["updated_at"]
+    assert same.json()["events"] == assigned["events"]
+
+
 def test_tickets_can_only_be_assigned_to_active_staff(
     client: TestClient, create_ticket, make_user, requester, agent
 ) -> None:
