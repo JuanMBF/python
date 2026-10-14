@@ -37,7 +37,15 @@ class HelpDeskClient:
 
         if response.status_code >= 400:
             raise ApiError(response.status_code, _error_message(response))
-        return response.json() if response.content else None
+        if not response.content:
+            return None
+        try:
+            return response.json()
+        except ValueError as exc:
+            # Something answered, but not the API (e.g. HELPDESK_API_URL points to another app).
+            raise ApiError(
+                response.status_code, f"La respuesta de {self.base_url} no es de la API de HelpDesk Pro"
+            ) from exc
 
     # --- auth --------------------------------------------------------------------------------
 
@@ -89,9 +97,10 @@ class HelpDeskClient:
 
 def _error_message(response: requests.Response) -> str:
     try:
-        detail = response.json().get("detail")
+        body = response.json()
     except ValueError:
         return f"Error {response.status_code}"
+    detail = body.get("detail") if isinstance(body, dict) else None
     if isinstance(detail, list):  # FastAPI validation errors
         return "; ".join(_format_validation_error(error) for error in detail)
     return str(detail or f"Error {response.status_code}")
