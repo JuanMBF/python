@@ -16,7 +16,8 @@ def get_user(db: Session, user_id: int) -> User:
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
-    return db.scalar(select(User).where(User.email == email.lower()))
+    # Same normalization as the Email schema used when the user was created: no surrounding spaces.
+    return db.scalar(select(User).where(User.email == email.strip().lower()))
 
 
 def authenticate(db: Session, email: str, password: str) -> User | None:

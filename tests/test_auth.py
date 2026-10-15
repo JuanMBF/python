@@ -25,6 +25,11 @@ def test_login_email_is_case_insensitive(client: TestClient, agent: User) -> Non
     assert login(client, "AGENT@Example.com", PASSWORD).status_code == 200
 
 
+def test_login_ignores_spaces_around_the_email(client: TestClient, agent: User) -> None:
+    # Creating a user with " agent@example.com " stores it trimmed, so logging in with it must work too.
+    assert login(client, " agent@example.com\t", PASSWORD).status_code == 200
+
+
 def test_login_with_wrong_password_fails(client: TestClient, agent: User) -> None:
     response = login(client, "agent@example.com", "wrong-password")
 
