@@ -50,6 +50,9 @@ class HelpDeskClient:
     # --- auth --------------------------------------------------------------------------------
 
     def login(self, email: str, password: str) -> str:
+        # The API would answer 422 "username: Field required", and the form field is called "Email".
+        if not email.strip() or not password:
+            raise ApiError(422, "Completá el email y la contraseña")
         data = self._request("POST", "/auth/login", data={"username": email, "password": password})
         self.token = data["access_token"]
         return self.token

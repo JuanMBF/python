@@ -44,6 +44,18 @@ def test_non_json_success_response_is_an_api_error(client) -> None:
     assert "http://api.test/api/v1" in error.value.message
 
 
+@pytest.mark.parametrize(("email", "password"), [("", ""), ("   ", "Demo1234!"), ("ana@example.com", "")])
+def test_login_with_empty_fields_does_not_call_the_api(client, email: str, password: str) -> None:
+    # The API rejected it with "username: Field required; password: Field required".
+    api = client(200, b'{"access_token": "token"}')
+    api._session.request = lambda *args, **kwargs: pytest.fail("no debería llamar a la API")
+
+    with pytest.raises(ApiError) as error:
+        api.login(email, password)
+    assert error.value.message == "Completá el email y la contraseña"
+    assert api.token is None
+
+
 def test_error_with_json_that_is_not_an_object_keeps_the_status(client) -> None:
     with pytest.raises(ApiError) as error:
         client(502, b'["bad gateway"]').me()
