@@ -6,6 +6,8 @@ from typing import Any
 import requests
 
 DEFAULT_API_URL = "http://localhost:8000/api/v1"
+# Same limit as the API's `q` parameter on GET /tickets.
+MAX_SEARCH_LENGTH = 100
 
 
 class ApiError(Exception):
@@ -64,6 +66,9 @@ class HelpDeskClient:
 
     def list_tickets(self, **params: Any) -> dict:
         clean = {key: value for key, value in params.items() if value not in (None, [], "", False)}
+        # The API would answer 422 "q: String should have at most 100 characters".
+        if len(clean.get("q", "")) > MAX_SEARCH_LENGTH:
+            raise ApiError(422, f"La búsqueda puede tener hasta {MAX_SEARCH_LENGTH} caracteres")
         return self._request("GET", "/tickets", params=clean)
 
     def get_ticket(self, ticket_id: int) -> dict:

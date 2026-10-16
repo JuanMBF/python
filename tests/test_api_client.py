@@ -56,6 +56,21 @@ def test_login_with_empty_fields_does_not_call_the_api(client, email: str, passw
     assert api.token is None
 
 
+def test_search_longer_than_the_api_accepts_does_not_call_the_api(client) -> None:
+    # The API rejected it with "q: String should have at most 100 characters".
+    api = client(200, b'{"items": []}')
+    api._session.request = lambda *args, **kwargs: pytest.fail("no debería llamar a la API")
+
+    with pytest.raises(ApiError) as error:
+        api.list_tickets(q="x" * 101)
+    assert error.value.status_code == 422
+    assert error.value.message == "La búsqueda puede tener hasta 100 caracteres"
+
+
+def test_search_at_the_limit_is_sent(client) -> None:
+    assert client(200, b'{"items": []}').list_tickets(q="x" * 100) == {"items": []}
+
+
 def test_error_with_json_that_is_not_an_object_keeps_the_status(client) -> None:
     with pytest.raises(ApiError) as error:
         client(502, b'["bad gateway"]').me()

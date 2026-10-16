@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 import ui
-from api_client import ApiError, HelpDeskClient
+from api_client import MAX_SEARCH_LENGTH, ApiError, HelpDeskClient
 
 PAGE_SIZE = 15
 SORT_OPTIONS = {
@@ -27,7 +27,10 @@ def _filters(staff: bool) -> dict:
         search, status, priority, category = st.columns([1.6, 2.6, 1.4, 1.4])
         params: dict = {
             "q": search.text_input(
-                "Buscar", placeholder="Título, descripción o #número", icon=":material/search:"
+                "Buscar",
+                placeholder="Título, descripción o #número",
+                icon=":material/search:",
+                max_chars=MAX_SEARCH_LENGTH,
             ),
             "status": status.multiselect(
                 "Estado",
