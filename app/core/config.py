@@ -34,6 +34,22 @@ class Settings(BaseSettings):
             ) from None
         return value
 
+    @field_validator("bcrypt_rounds")
+    @classmethod
+    def _valid_bcrypt_rounds(cls, value: int) -> int:
+        # bcrypt rejects anything else, but only when hashing: creating users would answer 500.
+        if not 4 <= value <= 31:
+            raise ValueError(f"BCRYPT_ROUNDS tiene que estar entre 4 y 31 (se recibió {value})")
+        return value
+
+    @field_validator("access_token_expire_minutes")
+    @classmethod
+    def _positive_token_lifetime(cls, value: int) -> int:
+        # A token that is already expired when issued: login works and every request answers 401.
+        if value < 1:
+            raise ValueError(f"ACCESS_TOKEN_EXPIRE_MINUTES tiene que ser mayor que cero (se recibió {value})")
+        return value
+
 
 @lru_cache
 def get_settings() -> Settings:
