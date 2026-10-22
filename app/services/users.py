@@ -1,11 +1,14 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.security import hash_password, verify_password
 from app.domain.enums import UserRole
-from app.models import User
+from app.domain.workflow import ACTIVE_STATUSES
+from app.models import Ticket, User
 from app.schemas.user import UserCreate, UserUpdate
+
+STAFF_ROLES = (UserRole.AGENT, UserRole.ADMIN)
 
 
 def get_user(db: Session, user_id: int) -> User:
@@ -61,6 +64,19 @@ def update_user(db: Session, user_id: int, data: UserUpdate, actor: User) -> Use
             raise ConflictError("No podés desactivar tu propio usuario")
         if "role" in changes and changes["role"] != UserRole.ADMIN:
             raise ConflictError("No podés quitarte tus propios permisos de administrador")
+
+    # Tickets can only be assigned to active staff: leaving one with a requester or an inactive user
+    # means nobody can work on it, and the requester cannot even see it.
+    stays_staff = changes.get("role", user.role) in STAFF_ROLES and changes.get("is_active", user.is_active)
+    if user.is_staff and not stays_staff:
+        assigned = db.scalar(
+            select(func.count(Ticket.id)).where(
+                Ticket.assignee_id == user.id, Ticket.status.in_(ACTIVE_STATUSES)
+            )
+        )
+        if assigned:
+            noun = "ticket activo asignado" if assigned == 1 else "tickets activos asignados"
+            raise ConflictError(f"El usuario tiene {assigned} {noun}: reasignalos antes")
 
     if "password" in changes:
         user.hashed_password = hash_password(changes.pop("password"))

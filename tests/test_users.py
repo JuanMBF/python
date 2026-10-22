@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.models import User
@@ -80,6 +81,37 @@ def test_admin_cannot_lock_themselves_out(client: TestClient, admin: User) -> No
 
     assert deactivate.status_code == 409
     assert demote.status_code == 409
+
+
+@pytest.mark.parametrize("change", [{"role": "requester"}, {"is_active": False}])
+def test_agent_with_active_tickets_cannot_be_demoted_or_deactivated(
+    client: TestClient, admin: User, agent: User, requester: User, create_ticket, change: dict
+) -> None:
+    # Otherwise the ticket stays assigned to someone who can no longer see it nor work on it.
+    ticket = create_ticket(requester)
+    client.patch(f"/api/v1/tickets/{ticket['id']}", json={"assignee_id": agent.id}, headers=auth(admin))
+
+    response = client.patch(f"{USERS}/{agent.id}", json=change, headers=auth(admin))
+
+    assert response.status_code == 409
+    assert "1 ticket activo" in response.json()["detail"]
+    detail = client.get(f"/api/v1/tickets/{ticket['id']}", headers=auth(admin)).json()
+    assert detail["assignee"]["role"] == "agent"
+
+
+def test_agent_whose_tickets_are_finished_can_be_deactivated(
+    client: TestClient, admin: User, agent: User, requester: User, create_ticket
+) -> None:
+    ticket = create_ticket(requester)
+    client.patch(
+        f"/api/v1/tickets/{ticket['id']}",
+        json={"assignee_id": agent.id, "status": "resolved"},
+        headers=auth(admin),
+    )
+
+    response = client.patch(f"{USERS}/{agent.id}", json={"is_active": False}, headers=auth(admin))
+
+    assert response.status_code == 200
 
 
 def test_update_unknown_user_returns_404(client: TestClient, admin: User) -> None:
