@@ -1,7 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from app.core.config import Settings
+from app.core.config import MAX_TOKEN_MINUTES, Settings
+from app.core.security import create_access_token
 
 
 def test_default_timezone_is_valid() -> None:
@@ -29,6 +30,15 @@ def test_non_positive_token_lifetime_fails_at_startup(minutes: int) -> None:
         Settings(_env_file=None, access_token_expire_minutes=minutes)
 
 
+@pytest.mark.parametrize("minutes", [MAX_TOKEN_MINUTES + 1, 10**10])
+def test_huge_token_lifetime_fails_at_startup(minutes: int) -> None:
+    # The expiry date overflowed (OverflowError) and every login answered 500.
+    with pytest.raises(ValidationError, match="ACCESS_TOKEN_EXPIRE_MINUTES puede ser como mucho"):
+        Settings(_env_file=None, access_token_expire_minutes=minutes)
+
+
 def test_security_settings_limits_are_accepted() -> None:
     assert Settings(_env_file=None, bcrypt_rounds=4, access_token_expire_minutes=1).bcrypt_rounds == 4
     assert Settings(_env_file=None, bcrypt_rounds=31).bcrypt_rounds == 31
+    longest = Settings(_env_file=None, access_token_expire_minutes=MAX_TOKEN_MINUTES)
+    assert create_access_token(1, expires_minutes=longest.access_token_expire_minutes)

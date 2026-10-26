@@ -6,6 +6,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+MAX_TOKEN_MINUTES = 365 * 24 * 60
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -48,6 +50,12 @@ class Settings(BaseSettings):
         # A token that is already expired when issued: login works and every request answers 401.
         if value < 1:
             raise ValueError(f"ACCESS_TOKEN_EXPIRE_MINUTES tiene que ser mayor que cero (se recibió {value})")
+        # A huge lifetime overflowed the expiry date (OverflowError) and every login answered 500.
+        if value > MAX_TOKEN_MINUTES:
+            raise ValueError(
+                f"ACCESS_TOKEN_EXPIRE_MINUTES puede ser como mucho {MAX_TOKEN_MINUTES} (un año); "
+                f"se recibió {value}"
+            )
         return value
 
 
