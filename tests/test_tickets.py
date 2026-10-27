@@ -316,6 +316,18 @@ def test_search_treats_like_wildcards_as_plain_text(
     assert ids("_") == []
 
 
+def test_search_ignores_case_of_accented_letters(client: TestClient, create_ticket, requester, agent) -> None:
+    # SQLite's LOWER() only lowercases ASCII: "área" did not find "ÁREA" and "DISEÑO" did not find "diseño".
+    ticket = create_ticket(requester, title="El ÁREA de diseño no tiene acceso")
+
+    def ids(q: str) -> list[int]:
+        response = client.get(TICKETS, params={"q": q}, headers=auth(agent))
+        return [item["id"] for item in response.json()["items"]]
+
+    assert ids("área") == [ticket["id"]]
+    assert ids("DISEÑO") == [ticket["id"]]
+
+
 def test_overdue_filter_and_sla_flag(
     client: TestClient, db: Session, create_ticket, requester, agent
 ) -> None:
